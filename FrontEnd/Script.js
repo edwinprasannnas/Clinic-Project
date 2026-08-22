@@ -1,4 +1,4 @@
-const API_BASE = "http://localhost:8000";
+const API_BASE = "https://willow-clinic-api.onrender.com";
 const week = [
     {d:'Mon', open:8, close:20},
     {d:'Tue', open:8, close:20},
