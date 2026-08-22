@@ -23,9 +23,7 @@ from psycopg2 import pool
 # variables into the environment. Safe to call even if no .env exists.
 load_dotenv()
 
-DATABASE_URL = os.environ.get(
-    "DATABASE_URL", "postgresql://postgres:EdiSumPraj@localhost:5432/willowclinic"
-)
+DATABASE_URL = os.environ.get("DATABASE_URL")
 
 # Tune min/max connections to your expected concurrency.
 _pool: pool.SimpleConnectionPool | None = None
