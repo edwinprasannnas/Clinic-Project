@@ -46,7 +46,7 @@
     // --- Auth guard: bounce to login if there's no token ---
     const token = localStorage.getItem('adminToken');
     if (!token) {
-      window.location.href = 'login.html';
+      window.location.href = '/admin';
     }
 
     function authHeaders() {
@@ -55,7 +55,7 @@
 
     function logout() {
       localStorage.removeItem('adminToken');
-      window.location.href = 'login.html';
+      window.location.href = '/admin';
     }
     document.getElementById('logoutBtn').addEventListener('click', logout);
 

@@ -26,14 +26,26 @@ from datetime import date as date_cls
 from typing import Optional
 
 from fastapi import Depends, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, StreamingResponse
+from pathlib import Path
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import FileResponse, StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
 import auth
 import database as db
 
 app = FastAPI(title="Willow Health Clinic API")
+BASE_DIR = Path(__file__).resolve().parent
+
+@app.get("/admin")
+def admin_login():
+    return FileResponse(BASE_DIR / "login.html")
+
+
+@app.get("/admin/dashboard")
+def admin_dashboard():
+    return FileResponse(BASE_DIR / "dashboard.html")
 
 # In production, replace "*" with your actual landing page + admin dashboard domains.
 app.add_middleware(

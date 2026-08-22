@@ -40,7 +40,7 @@
 
     // If already logged in, skip straight to the dashboard.
     if (localStorage.getItem('adminToken')) {
-      window.location.href = 'dashboard.html';
+      window.location.href = '/admin/dashboard';
     }
 
     form.addEventListener('submit', async (e) => {
