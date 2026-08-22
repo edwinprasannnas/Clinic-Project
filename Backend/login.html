@@ -1,0 +1,75 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Willow Health — Admin Login</title>
+<style>
+  body{ font-family: -apple-system, Arial, sans-serif; background:#EFEDE2; color:#172520;
+        margin:0; min-height:100vh; display:flex; align-items:center; justify-content:center; }
+  .card{ background:#FBFAF5; border:1px solid rgba(23,37,32,0.14); border-radius:8px;
+         padding:32px; width:320px; }
+  h1{ font-size:19px; margin:0 0 20px; }
+  label{ display:block; font-size:12px; text-transform:uppercase; letter-spacing:0.05em;
+         color:#3E4B45; margin-bottom:4px; }
+  input{ width:100%; box-sizing:border-box; padding:9px 10px; margin-bottom:16px;
+         border:1px solid rgba(23,37,32,0.2); border-radius:4px; font-size:14px; }
+  button{ width:100%; padding:10px; background:#33574C; color:#fff; border:none;
+          border-radius:4px; font-size:14px; cursor:pointer; }
+  button:disabled{ opacity:0.6; cursor:default; }
+  .error{ color:#c0504d; font-size:13px; margin-bottom:12px; min-height:16px; }
+</style>
+</head>
+<body>
+  <form class="card" id="loginForm">
+    <h1>Admin sign in</h1>
+    <div class="error" id="errorMsg"></div>
+    <label for="username">Username</label>
+    <input id="username" name="username" autocomplete="username" required>
+    <label for="password">Password</label>
+    <input id="password" name="password" type="password" autocomplete="current-password" required>
+    <button type="submit" id="submitBtn">Sign in</button>
+  </form>
+
+  <script>
+    // Point this at your running backend
+    const API_BASE = "http://localhost:8000";
+
+    const form = document.getElementById('loginForm');
+    const errorEl = document.getElementById('errorMsg');
+    const btn = document.getElementById('submitBtn');
+
+    // If already logged in, skip straight to the dashboard.
+    if (localStorage.getItem('adminToken')) {
+      window.location.href = 'dashboard.html';
+    }
+
+    form.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      errorEl.textContent = '';
+      btn.disabled = true;
+      btn.textContent = 'Signing in…';
+
+      const username = document.getElementById('username').value;
+      const password = document.getElementById('password').value;
+
+      try {
+        const res = await fetch(`${API_BASE}/api/login`, {
+          method: 'POST',
+          headers: {'Content-Type': 'application/json'},
+          body: JSON.stringify({username, password})
+        });
+        if (!res.ok) {
+          throw new Error('Invalid username or password');
+        }
+        const data = await res.json();
+        localStorage.setItem('adminToken', data.token);
+        window.location.href = 'dashboard.html';
+      } catch (err) {
+        errorEl.textContent = err.message || 'Sign in failed';
+        btn.disabled = false;
+        btn.textContent = 'Sign in';
+      }
+    });
+  </script>
+</body>
+</html>

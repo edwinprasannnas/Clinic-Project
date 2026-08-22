@@ -5,7 +5,10 @@
 <title>Willow Health — Bookings Dashboard</title>
 <style>
   body{ font-family: -apple-system, Arial, sans-serif; background:#EFEDE2; color:#172520; margin:0; padding:32px; }
-  h1{ font-size:22px; margin-bottom:4px; }
+  .topbar{ display:flex; justify-content:space-between; align-items:baseline; margin-bottom:4px; }
+  h1{ font-size:22px; margin:0; }
+  #logoutBtn{ background:none; border:1px solid rgba(23,37,32,0.3); border-radius:4px;
+              padding:6px 12px; font-size:12px; cursor:pointer; color:#172520; }
   .status{ font-size:13px; color:#3E4B45; margin-bottom:20px; }
   .status.live::before{ content:"● "; color:#33574C; }
   table{ width:100%; border-collapse:collapse; background:#FBFAF5; border:1px solid rgba(23,37,32,0.14); }
@@ -21,7 +24,10 @@
 </style>
 </head>
 <body>
-  <h1>Bookings — Live</h1>
+  <div class="topbar">
+    <h1>Bookings — Live</h1>
+    <button id="logoutBtn">Log out</button>
+  </div>
   <div class="status" id="connStatus">Connecting…</div>
   <table>
     <thead>
@@ -36,6 +42,35 @@
     const rowsEl = document.getElementById('rows');
     const statusEl = document.getElementById('connStatus');
     const bookingsById = new Map();
+
+    // --- Auth guard: bounce to login if there's no token ---
+    const token = localStorage.getItem('adminToken');
+    if (!token) {
+      window.location.href = 'login.html';
+    }
+
+    function authHeaders() {
+      return { 'Authorization': `Bearer ${token}` };
+    }
+
+    function logout() {
+      localStorage.removeItem('adminToken');
+      window.location.href = 'login.html';
+    }
+    document.getElementById('logoutBtn').addEventListener('click', logout);
+
+    // If the token is missing/expired, the API returns 401 — treat that as "log out".
+    async function authedFetch(url, options = {}) {
+      const res = await fetch(url, {
+        ...options,
+        headers: { ...(options.headers || {}), ...authHeaders() }
+      });
+      if (res.status === 401) {
+        logout();
+        throw new Error('Session expired');
+      }
+      return res;
+    }
 
     function fmtDate(iso){
       try { return new Date(iso).toLocaleString(); } catch { return iso; }
@@ -70,14 +105,14 @@
     }
 
     async function loadInitial(){
-      const res = await fetch(`${API_BASE}/api/bookings`);
+      const res = await authedFetch(`${API_BASE}/api/bookings`);
       const data = await res.json();
       data.bookings.forEach(b => { bookingsById.set(b.id, b); renderRow(b); });
     }
 
     async function setStatus(id, status){
       if(!status) return;
-      await fetch(`${API_BASE}/api/bookings/${id}/status`, {
+      await authedFetch(`${API_BASE}/api/bookings/${id}/status`, {
         method: 'PATCH',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({status})
@@ -85,7 +120,8 @@
     }
 
     function connectStream(){
-      const es = new EventSource(`${API_BASE}/api/stream`);
+      // EventSource can't send custom headers, so the token goes in the query string.
+      const es = new EventSource(`${API_BASE}/api/stream?token=${encodeURIComponent(token)}`);
       es.onopen = () => { statusEl.textContent = 'Live — updates in real time'; statusEl.className = 'status live'; };
       es.onerror = () => { statusEl.textContent = 'Reconnecting…'; statusEl.className = 'status'; };
       es.onmessage = (e) => {

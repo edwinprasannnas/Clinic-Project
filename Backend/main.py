@@ -1,13 +1,20 @@
 """
 Willow Health Clinic — backend API.
 
-Endpoints:
+Public endpoints:
   POST /api/bookings              Create a booking (called from the landing page modal)
+  GET  /api/health                Health check
+
+Admin-only endpoints (require a Bearer token from POST /api/login):
   GET  /api/bookings              List bookings (used by the admin dashboard)
   PATCH /api/bookings/{id}/status Update a booking's status (confirm/cancel)
+  GET  /api/activity              Recent activity log
   GET  /api/stream                Server-Sent Events feed — pushes every new booking
                                    or status change to any connected admin dashboard
                                    in real time, no polling needed.
+
+Auth:
+  POST /api/login                 { "username": "...", "password": "..." } -> { "token": "..." }
 
 Run:
   pip install -r requirements.txt
@@ -18,17 +25,17 @@ import json
 from datetime import date as date_cls
 from typing import Optional
 
-from fastapi import FastAPI, HTTPException, Request
+from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import StreamingResponse
 from pydantic import BaseModel, Field, field_validator
 
+import auth
 import database as db
 
 app = FastAPI(title="Willow Health Clinic API")
 
-# Allow the landing page (served from any origin/file during dev) to call this API.
-# In production, replace "*" with your actual site domain.
+# In production, replace "*" with your actual landing page + admin dashboard domains.
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["*"],
@@ -105,9 +112,22 @@ class StatusIn(BaseModel):
         return v
 
 
+class LoginIn(BaseModel):
+    username: str
+    password: str
+
+
 @app.on_event("startup")
 def startup():
     db.init_db()
+
+
+@app.post("/api/login")
+def login(payload: LoginIn):
+    if payload.username != auth.ADMIN_USERNAME or not auth.verify_password(payload.password):
+        raise HTTPException(401, "Invalid username or password")
+    token = auth.create_access_token(payload.username)
+    return {"token": token}
 
 
 @app.post("/api/bookings")
@@ -124,14 +144,16 @@ async def create_booking(payload: BookingIn):
 
 
 @app.get("/api/bookings")
-def get_bookings(status: Optional[str] = None):
+def get_bookings(status: Optional[str] = None, _admin: str = Depends(auth.require_admin)):
     if status and status not in VALID_STATUSES:
         raise HTTPException(400, f"status must be one of {VALID_STATUSES}")
     return {"bookings": db.list_bookings(status)}
 
 
 @app.patch("/api/bookings/{booking_id}/status")
-async def set_status(booking_id: int, payload: StatusIn):
+async def set_status(
+    booking_id: int, payload: StatusIn, _admin: str = Depends(auth.require_admin)
+):
     booking = db.update_booking_status(booking_id, payload.status)
     if not booking:
         raise HTTPException(404, "Booking not found")
@@ -140,12 +162,12 @@ async def set_status(booking_id: int, payload: StatusIn):
 
 
 @app.get("/api/activity")
-def get_activity():
+def get_activity(_admin: str = Depends(auth.require_admin)):
     return {"activity": db.recent_activity()}
 
 
 @app.get("/api/stream")
-async def stream(request: Request):
+async def stream(request: Request, _admin: str = Depends(auth.require_admin_from_query_or_header)):
     """Server-Sent Events — the admin dashboard listens here for live updates."""
     queue: asyncio.Queue = asyncio.Queue(maxsize=100)
     subscribers.append(queue)
