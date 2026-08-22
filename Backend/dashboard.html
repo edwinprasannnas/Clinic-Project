@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<title>Willow Health — Bookings Dashboard</title>
+<style>
+  body{ font-family: -apple-system, Arial, sans-serif; background:#EFEDE2; color:#172520; margin:0; padding:32px; }
+  h1{ font-size:22px; margin-bottom:4px; }
+  .status{ font-size:13px; color:#3E4B45; margin-bottom:20px; }
+  .status.live::before{ content:"● "; color:#33574C; }
+  table{ width:100%; border-collapse:collapse; background:#FBFAF5; border:1px solid rgba(23,37,32,0.14); }
+  th, td{ text-align:left; padding:10px 12px; border-bottom:1px solid rgba(23,37,32,0.1); font-size:13.5px; }
+  th{ background:#E6E3D4; text-transform:uppercase; font-size:11px; letter-spacing:0.05em; }
+  tr.new{ animation: flash 1.5s ease; }
+  @keyframes flash{ from{ background:#DCC594; } to{ background:transparent; } }
+  select{ font-size:12px; padding:4px 6px; }
+  .badge{ padding:2px 8px; border-radius:10px; font-size:11px; text-transform:capitalize; }
+  .badge.pending{ background:#DCC594; color:#3E2F0F; }
+  .badge.confirmed{ background:#33574C; color:#fff; }
+  .badge.cancelled{ background:#c0504d; color:#fff; }
+</style>
+</head>
+<body>
+  <h1>Bookings — Live</h1>
+  <div class="status" id="connStatus">Connecting…</div>
+  <table>
+    <thead>
+      <tr><th>ID</th><th>Name</th><th>Phone</th><th>Date</th><th>Service</th><th>Doctor</th><th>Status</th><th>Requested</th><th></th></tr>
+    </thead>
+    <tbody id="rows"></tbody>
+  </table>
+
+  <script>
+    // Point this at your running backend
+    const API_BASE = "http://localhost:8000";
+    const rowsEl = document.getElementById('rows');
+    const statusEl = document.getElementById('connStatus');
+    const bookingsById = new Map();
+
+    function fmtDate(iso){
+      try { return new Date(iso).toLocaleString(); } catch { return iso; }
+    }
+
+    function renderRow(b){
+      let tr = document.getElementById('row-' + b.id);
+      if(!tr){
+        tr = document.createElement('tr');
+        tr.id = 'row-' + b.id;
+        rowsEl.prepend(tr);
+      }
+      tr.className = 'new';
+      tr.innerHTML = `
+        <td>#${b.id}</td>
+        <td>${b.name}</td>
+        <td>${b.phone}</td>
+        <td>${b.date}</td>
+        <td>${b.service}</td>
+        <td>${b.doctor || '—'}</td>
+        <td><span class="badge ${b.status}">${b.status}</span></td>
+        <td>${fmtDate(b.created_at)}</td>
+        <td>
+          <select onchange="setStatus(${b.id}, this.value)">
+            <option value="">Change…</option>
+            <option value="confirmed">Confirm</option>
+            <option value="cancelled">Cancel</option>
+            <option value="pending">Pending</option>
+          </select>
+        </td>`;
+      setTimeout(() => tr.classList.remove('new'), 1500);
+    }
+
+    async function loadInitial(){
+      const res = await fetch(`${API_BASE}/api/bookings`);
+      const data = await res.json();
+      data.bookings.forEach(b => { bookingsById.set(b.id, b); renderRow(b); });
+    }
+
+    async function setStatus(id, status){
+      if(!status) return;
+      await fetch(`${API_BASE}/api/bookings/${id}/status`, {
+        method: 'PATCH',
+        headers: {'Content-Type':'application/json'},
+        body: JSON.stringify({status})
+      });
+    }
+
+    function connectStream(){
+      const es = new EventSource(`${API_BASE}/api/stream`);
+      es.onopen = () => { statusEl.textContent = 'Live — updates in real time'; statusEl.className = 'status live'; };
+      es.onerror = () => { statusEl.textContent = 'Reconnecting…'; statusEl.className = 'status'; };
+      es.onmessage = (e) => {
+        const event = JSON.parse(e.data);
+        if(event.type === 'booking_created' || event.type === 'status_changed'){
+          renderRow(event.booking);
+        }
+      };
+    }
+
+    loadInitial();
+    connectStream();
+  </script>
+</body>
+</html>
