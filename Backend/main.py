@@ -24,6 +24,8 @@ import asyncio
 import json
 from datetime import date as date_cls
 from typing import Optional
+# Add this import at the top
+from fastapi import Response
 
 from fastapi import Depends, FastAPI, HTTPException, Request
 from fastapi.responses import FileResponse, StreamingResponse
