@@ -50,6 +50,23 @@ def admin_dashboard():
     return FileResponse(BASE_DIR / "dashboard.html")
 
 # In production, replace "*" with your actual landing page + admin dashboard domains.
+
+@app.middleware("http")
+async def set_security_headers(request: Request, call_next):
+    response = await call_next(request)
+    response.headers["Content-Security-Policy"] = (
+        "default-src 'self'; "
+        "script-src 'self' 'unsafe-inline'; "
+        "style-src 'self' 'unsafe-inline'; "
+        "img-src 'self' data:; "
+        "font-src 'self';"
+    )
+    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
+    response.headers["Permissions-Policy"] = "geolocation=(), microphone=(), camera=()"
+    return response
+
+    
 app.add_middleware(
     CORSMiddleware,
     allow_origins=["https://willow-clinic.onrender.com"],
